@@ -134,7 +134,7 @@ async function authAction(mode){
  if(!email||!password){say("authMessage","Enter your email and password.");return}
  setBusy(true);
  try{
-  const result=mode==="signup"?await db.auth.signUp({email,password}):await db.auth.signInWithPassword({email,password});
+  const result=mode==="signup"?await db.auth.signUp({email,password,options:{emailRedirectTo:"https://deep-dive-one.vercel.app/"}}):await db.auth.signInWithPassword({email,password});
   if(result.error)throw result.error;
   if(mode==="signup"&&!result.data.session)say("authMessage","Account created. Check your email to confirm it, then sign in.");
   else {$("authMessage").textContent="Signed in.";user=result.data.user||result.data.session?.user;await afterAuth();}

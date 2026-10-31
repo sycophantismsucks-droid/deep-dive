@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deep Dive — Study together, apart</title>
+<style>
+:root{--bg:#08090b;--panel:#111318;--panel2:#171a20;--line:#252a33;--text:#f2f3f5;--muted:#9299a5;--green:#9ce6bd;--red:#ff9c9c;--amber:#f3d18a;--blue:#a9c8ff}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -20%,#1b2029 0%,#08090b 55%);color:var(--text);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;min-height:100vh}
+button,input,select,textarea{font:inherit}button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}
+.wrap{width:min(1120px,calc(100% - 32px));margin:auto;padding:34px 0 70px}
+header{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:30px}
+.brand{display:flex;align-items:center;gap:12px}.mark{width:42px;height:42px;border:1px solid #39414d;border-radius:13px;display:grid;place-items:center;background:#151920;font-size:20px}
+.brand h1{font-size:18px;letter-spacing:.17em;margin:0;font-weight:750}.brand p{margin:2px 0 0;color:var(--muted);font-size:11px;letter-spacing:.12em}
+.pill{border:1px solid var(--line);border-radius:999px;padding:7px 11px;color:var(--muted);font-size:12px}
+h2{font-size:25px;line-height:1.2;margin:0 0 7px;letter-spacing:-.03em}h3{font-size:15px;margin:0;font-weight:650}
+.sub{color:var(--muted);margin:0}.eyebrow{font-size:10px;letter-spacing:.15em;color:var(--muted);font-weight:700}
+.grid{display:grid;grid-template-columns:1.35fr .85fr;gap:16px;margin-top:22px}.card{background:linear-gradient(145deg,#14171d,#101217);border:1px solid var(--line);border-radius:18px;padding:20px;min-width:0}
+.cardhead{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:17px}
+.btn{border:1px solid #343b47;border-radius:11px;background:#1b2028;color:var(--text);padding:10px 14px;font-weight:650;font-size:13px;transition:.15s}
+.btn:hover{border-color:#667181;background:#222833}.btn.primary{background:#e9edf2;color:#101216;border-color:#e9edf2}.btn.primary:hover{background:#fff}.btn.ghost{background:transparent}.btn.small{padding:7px 10px;font-size:12px}
+.btn.success{border-color:#315c47;color:var(--green);background:#13231b}.btn.danger{border-color:#603b3b;color:var(--red);background:#241718}.btn.amber{border-color:#655333;color:var(--amber);background:#231f16}
+.row{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.between{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.target{padding:15px;border:1px solid var(--line);background:#101319;border-radius:14px;margin-top:10px}
+.targettop{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.subject{font-size:10px;letter-spacing:.12em;color:var(--muted);font-weight:750;text-transform:uppercase}.topic{font-size:16px;font-weight:650;margin-top:4px;overflow-wrap:anywhere}.meta{color:var(--muted);font-size:11px;margin-top:7px}
+.status{font-size:10px;font-weight:750;letter-spacing:.06em;border-radius:99px;padding:5px 8px;white-space:nowrap;border:1px solid var(--line)}
+.status.studying{color:var(--blue);border-color:#354966;background:#141d2a}.status.completed{color:var(--green);border-color:#315c47;background:#13231b}.status.unfinished{color:var(--red);border-color:#603b3b;background:#241718}.status.carried{color:var(--amber);border-color:#655333;background:#231f16}
+.empty{padding:25px 12px;text-align:center;color:var(--muted);border:1px dashed #343b47;border-radius:13px;margin-top:10px;font-size:13px}
+.statgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.stat{background:#0e1116;border:1px solid var(--line);border-radius:13px;padding:13px}.stat strong{display:block;font-size:24px;letter-spacing:-.04em}.stat span{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.progress{height:6px;border-radius:20px;background:#292e37;overflow:hidden;margin-top:14px}.progress>div{height:100%;background:var(--green);width:0;transition:width .2s}
+.feeditem{padding:11px 0;border-bottom:1px solid #222731;font-size:12px;color:#c5cad2}.feeditem:last-child{border-bottom:0}.feedtime{color:var(--muted);font-size:10px;margin-top:3px}
+input,select,textarea{width:100%;background:#0c0f14;border:1px solid #303641;border-radius:10px;color:var(--text);padding:11px 12px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:#78879b}textarea{resize:vertical;min-height:82px}
+label{display:block;color:#b5bbc5;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin:13px 0 6px}
+.formgrid{display:grid;grid-template-columns:1fr 1.4fr;gap:11px}.formactions{display:flex;justify-content:flex-end;gap:8px;margin-top:15px}
+.note{font-size:11px;color:var(--muted);line-height:1.5}.hidden{display:none!important}
+.historyrow{display:grid;grid-template-columns:1fr auto;gap:10px;padding:12px 0;border-bottom:1px solid #242a33}.historyrow:last-child{border-bottom:0}
+.historytitle{font-size:13px;font-weight:650}.historymeta{font-size:11px;color:var(--muted);margin-top:3px}
+.modalback{position:fixed;inset:0;background:#000b;display:grid;place-items:center;padding:18px;z-index:5}.modal{width:min(520px,100%);background:#13161c;border:1px solid #343b47;border-radius:18px;padding:22px;box-shadow:0 20px 80px #0009;max-height:90vh;overflow:auto}
+.modal h2{font-size:20px}.modalfoot{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.notice{border:1px solid #665334;background:#211d15;color:#d9c28f;border-radius:11px;padding:11px 13px;font-size:11px;margin-top:16px}
+.joinbox{width:min(480px,100%);margin:9vh auto 0}.joinbox .card{padding:26px}
+.tabs{display:flex;gap:7px;flex-wrap:wrap}.tab{padding:8px 11px;border:1px solid var(--line);border-radius:9px;background:transparent;color:var(--muted);font-size:12px}.tab.active{background:#e9edf2;color:#101216;border-color:#e9edf2}
+@media(max-width:760px){.grid{grid-template-columns:1fr}.wrap{padding-top:22px}.formgrid{grid-template-columns:1fr}.card{padding:16px}header{margin-bottom:23px}.stat strong{font-size:21px}}
+</style>
+</head>
+<body>
+<div id="joinScreen" class="wrap joinbox hidden">
+  <div class="brand" style="margin-bottom:24px"><div class="mark">◈</div><div><h1>DEEP DIVE</h1><p>STUDY TOGETHER. EVEN WHEN APART.</p></div></div>
+  <section class="card">
+    <div class="eyebrow">YOUR SHARED STUDY SPACE</div>
+    <h2 style="margin-top:8px">Create or join a room.</h2>
+    <p class="sub" style="font-size:13px">Start a room for your group, or enter a room code you've been given.</p>
+    <label for="displayName">Your name</label><input id="displayName" maxlength="30" placeholder="What should your friends call you?">
+    <div class="formgrid" style="margin-top:6px">
+      <div><label for="newRoomName">Room name (optional)</label><input id="newRoomName" maxlength="30" placeholder="Our study room"></div>
+      <div><label for="roomCodeInput">Room code</label><input id="roomCodeInput" maxlength="16" placeholder="e.g. DIVE7X2"></div>
+    </div>
+    <div class="row" style="margin-top:17px">
+      <button class="btn primary" id="createRoomBtn">Create a room</button>
+      <button class="btn" id="joinRoomBtn">Join with code</button>
+    </div>
+    <p class="note" style="margin-top:16px">This first preview saves data in this browser only. Room links and live sharing between different devices will work after the database is connected.</p>
+    <div id="joinError" class="notice hidden"></div>
+  </section>
+</div>
+
+<div id="app" class="wrap hidden">
+  <header>
+    <div class="brand"><div class="mark">◈</div><div><h1>DEEP DIVE</h1><p>STUDY TOGETHER. EVEN WHEN APART.</p></div></div>
+    <div class="row"><span class="pill" id="roomPill">ROOM —</span><button class="btn small ghost" id="inviteBtn">↗ Invite a friend</button><div style="position:relative"><button class="btn small ghost" id="settingsBtn" aria-expanded="false">⚙ Settings</button><div id="settingsMenu" class="card hidden" style="position:absolute;right:0;top:42px;width:210px;padding:8px;z-index:4;box-shadow:0 12px 35px #0009"><button class="btn small ghost" id="leaveRoomBtn" style="width:100%;text-align:left">Leave this room</button><p class="note" style="padding:5px 7px;margin:4px 0">Your room history and targets will stay saved.</p></div></div></div>
+  </header>
+  <div class="between" style="align-items:flex-end">
+    <div><div class="eyebrow" id="todayLabel">TODAY</div><h2 id="greeting">Today's study space.</h2><p class="sub" id="memberLabel">Your group, one shared view.</p></div>
+    <button class="btn small" id="changeNameBtn">Edit my name</button>
+  </div>
+  <div class="grid">
+    <main>
+      <section class="card">
+        <div class="cardhead"><div><div class="eyebrow">THE PLAN</div><h3 style="margin-top:4px">Today's targets</h3></div><button class="btn primary" id="addTargetBtn">＋ New target</button></div>
+        <div id="targets"></div>
+      </section>
+      <section class="card" style="margin-top:16px">
+        <div class="cardhead"><div><div class="eyebrow">THE LAST 7 DAYS</div><h3 style="margin-top:4px">Shared history</h3></div><span class="pill" id="historyCount">0 records</span></div>
+        <div class="tabs"><button class="tab active" data-filter="all">Everyone</button><button class="tab" data-filter="mine">My targets</button></div>
+        <div id="history" style="margin-top:12px"></div>
+      </section>
+    </main>
+    <aside>
+      <section class="card">
+        <div class="cardhead"><div><div class="eyebrow">THE DAILY PULSE</div><h3 style="margin-top:4px">Group progress</h3></div><span class="pill">TODAY</span></div>
+        <div class="statgrid"><div class="stat"><strong id="totalStat">0</strong><span>Targets</span></div><div class="stat"><strong id="doneStat">0</strong><span>Completed</span></div><div class="stat"><strong id="leftStat">0</strong><span>Remaining</span></div></div>
+        <div class="progress"><div id="progressBar"></div></div>
+        <p class="note" id="progressText" style="margin:9px 0 0">No targets yet. Set the first one.</p>
+      </section>
+      <section class="card" style="margin-top:16px">
+        <div class="cardhead"><div><div class="eyebrow">HAPPENING NOW</div><h3 style="margin-top:4px">Live activity</h3></div><span class="status studying">● FEED</span></div>
+        <div id="feed"></div>
+      </section>
+      <section class="card" style="margin-top:16px">
+        <div class="cardhead"><div><div class="eyebrow">YOUR ROOM</div><h3 style="margin-top:4px">Members</h3></div><span class="pill" id="memberCount">1 member</span></div>
+        <div id="members" class="note"></div>
+        <p class="note" style="margin-top:12px">Room code: <strong id="roomCodeDisplay" style="color:#e8ebf0"></strong></p>
+      </section>
+    </aside>
+  </div>
+  <p class="note" style="text-align:center;margin-top:24px">DEEP DIVE · Keep showing up.</p>
+</div>
+
+<div id="modalRoot"></div>
+<script>
+(() => {
+const SUBJECTS=["Physics 1st Paper","Physics 2nd Paper","Chemistry 1st Paper","Chemistry 2nd Paper","Math 1st Paper","Math 2nd Paper","Biology 1st Paper","Biology 2nd Paper","ICT","Bangla 1st Paper","Bangla 2nd Paper","English 1st Paper","English 2nd Paper"];
+const $=id=>document.getElementById(id);
+const today=()=>new Date().toISOString().slice(0,10);
+const stamp=()=>new Date().toISOString();
+const fmtDate=s=>new Date(s+"T00:00:00").toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short"});
+const fmtTime=s=>new Date(s).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let roomCode=null,me=null,room=null,historyFilter="all";
+const storageKey=code=>"deepdive_demo_room_"+code;
+function save(){if(roomCode&&room)localStorage.setItem(storageKey(roomCode),JSON.stringify(room));}
+function load(code){try{return JSON.parse(localStorage.getItem(storageKey(code))||"null")}catch{return null}}
+function log(message){room.activity.unshift({id:crypto.randomUUID(),message,at:stamp()});room.activity=room.activity.slice(0,80);save();}
+function showJoin(){ $("joinScreen").classList.remove("hidden");$("app").classList.add("hidden");}
+function showApp(){ $("joinScreen").classList.add("hidden");$("app").classList.remove("hidden");render();}
+function enter(code,name,create=false,roomName=""){
+ roomCode=code.toUpperCase();me=name.trim();
+ if(!me){$("joinError").textContent="Please enter your name first.";$("joinError").classList.remove("hidden");return}
+ room=load(roomCode);
+ if(create){if(room){$("joinError").textContent="That room code already exists in this browser. Try creating again.";$("joinError").classList.remove("hidden");return}room={name:roomName.trim()||"Our study room",members:[],targets:[],activity:[]};}
+ if(!room){$("joinError").textContent="That room isn't saved in this browser yet. For this preview, create it here first.";$("joinError").classList.remove("hidden");return}
+ if(!room.members.includes(me)){if(room.members.length>=7){$("joinError").textContent="This room has reached its 7-member limit.";$("joinError").classList.remove("hidden");return}room.members.push(me);log(me+" joined the room");}
+ else log(me+" opened Deep Dive");
+ save();localStorage.setItem("deepdive_demo_last",JSON.stringify({code:roomCode,name:me}));showApp();
+}
+function statusText(s){return ({studying:"Studying",completed:"Completed",unfinished:"Not completed",carried:"Carried over"})[s]||s}
+function statusClass(s){return s}
+function canSeeNote(t){return t.owner===me}
+function render(){
+ if(!room)return;
+ $("roomPill").textContent="ROOM · "+roomCode;$("roomCodeDisplay").textContent=roomCode;
+ $("todayLabel").textContent=new Date().toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long"}).toUpperCase();
+ $("greeting").textContent=room.name||"Today's study space.";
+ $("memberLabel").textContent="Signed in as "+me+" · "+room.members.length+" of 7 members";
+ $("memberCount").textContent=room.members.length+" member"+(room.members.length===1?"":"s");
+ $("members").innerHTML=room.members.map(n=>`<div style="padding:6px 0;border-bottom:1px solid #252a33">◦ ${esc(n)} ${n===me?'<span style="color:#9299a5">(you)</span>':""}</div>`).join("");
+ const todays=room.targets.filter(t=>t.date===today());
+ const done=todays.filter(t=>t.status==="completed").length;
+ $("totalStat").textContent=todays.length;$("doneStat").textContent=done;$("leftStat").textContent=todays.length-done;
+ $("progressBar").style.width=(todays.length?done/todays.length*100:0)+"%";
+ $("progressText").textContent=todays.length?`${done} of ${todays.length} targets completed (${Math.round(done/todays.length*100)}%).`:"No targets yet. Set the first one.";
+ $("targets").innerHTML=todays.length? [...todays].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).map(t=>`
+ <article class="target"><div class="targettop"><div><div class="subject">${esc(t.subject)} · ${esc(t.owner)}</div><div class="topic">${esc(t.topic)}</div><div class="meta">Added ${fmtTime(t.createdAt)}</div></div><span class="status ${statusClass(t.status)}">${statusText(t.status)}</span></div>
+ ${t.note&&canSeeNote(t)?`<div class="meta" style="margin-top:10px;color:#c0c6d0">Private note: ${esc(t.note)}</div>`:""}
+ ${t.reason?`<div class="meta" style="margin-top:8px;color:#e0aaaa">Reason: ${esc(t.reason)}</div>`:""}
+ <div class="row" style="margin-top:12px">${t.owner===me?`<button class="btn small" data-action="edit" data-id="${t.id}">Edit</button><button class="btn small ghost" data-action="delete" data-id="${t.id}">Delete</button>`:""}
+ ${t.status==="studying"?`<button class="btn small success" data-action="complete" data-id="${t.id}">✓ Completed</button><button class="btn small danger" data-action="unfinished" data-id="${t.id}">Not completed</button><button class="btn small amber" data-action="carry" data-id="${t.id}">Carry over</button>`:""}
+ </div></article>`).join(""):'<div class="empty">No targets submitted today.<br>Start by adding what you plan to study.</div>';
+ const sevenAgo=new Date();sevenAgo.setDate(sevenAgo.getDate()-6);const minDate=sevenAgo.toISOString().slice(0,10);
+ const hist=room.targets.filter(t=>t.date>=minDate).filter(t=>historyFilter==="all"||t.owner===me).sort((a,b)=>(b.updatedAt||b.createdAt).localeCompare(a.updatedAt||a.createdAt));
+ $("historyCount").textContent=hist.length+" records";
+ $("history").innerHTML=hist.length?hist.map(t=>`<div class="historyrow"><div><div class="historytitle">${esc(t.subject)} · ${esc(t.topic)}</div><div class="historymeta">${esc(t.owner)} · ${fmtDate(t.date)}${t.reason?" · "+esc(t.reason):""}</div></div><span class="status ${statusClass(t.status)}">${statusText(t.status)}</span></div>`).join(""):'<div class="empty">Nothing in the last seven days yet.</div>';
+ $("feed").innerHTML=room.activity.length?room.activity.slice(0,12).map(a=>`<div class="feeditem">${esc(a.message)}<div class="feedtime">${fmtTime(a.at)}</div></div>`).join(""):'<div class="note">Activity will appear here as your group updates targets.</div>';
+}
+function modal(title,body,submitLabel,handler){
+ $("modalRoot").innerHTML=`<div class="modalback" id="modalBack"><div class="modal"><div class="between"><h2>${title}</h2><button class="btn small ghost" id="closeModal">✕</button></div>${body}<div class="modalfoot"><button class="btn" id="cancelModal">Cancel</button><button class="btn primary" id="submitModal">${submitLabel}</button></div></div></div>`;
+ $("closeModal").onclick=$("cancelModal").onclick=closeModal;
+ $("modalBack").addEventListener("click",e=>{if(e.target.id==="modalBack")closeModal()});
+ $("submitModal").onclick=handler;
+}
+function closeModal(){$("modalRoot").innerHTML=""}
+function addTarget(existing=null){
+ const edit=!!existing;
+ const body=`<label>Subject</label><select id="fSubject">${SUBJECTS.map(s=>`<option ${existing?.subject===s?"selected":""}>${s}</option>`).join("")}</select>
+ <label>Topic</label><input id="fTopic" maxlength="120" placeholder="What are you going to study?" value="${esc(existing?.topic||"")}">
+ <label>Private note <span style="color:#858d99;text-transform:none;letter-spacing:0">(only you can see this)</span></label><textarea id="fNote" maxlength="500" placeholder="Optional reminder or personal note...">${esc(existing?.note||"")}</textarea>`;
+ modal(edit?"Edit target":"Set a new target",body,edit?"Save changes":"Submit target",()=>{
+  const topic=$("fTopic").value.trim();if(!topic){$("fTopic").focus();return}
+  if(edit){existing.subject=$("fSubject").value;existing.topic=topic;existing.note=$("fNote").value.trim();existing.updatedAt=stamp();log(me+" edited a target");}
+  else{const t={id:crypto.randomUUID(),owner:me,subject:$("fSubject").value,topic,note:$("fNote").value.trim(),status:"studying",date:today(),createdAt:stamp(),updatedAt:stamp(),reason:""};room.targets.push(t);log(me+" started "+t.subject+": "+t.topic);}
+  save();closeModal();render();
+ });
+}
+function updateStatus(id,status){
+ const t=room.targets.find(x=>x.id===id);if(!t)return;
+ if(status==="unfinished"){
+  modal("What got in the way? ",`<p class="sub" style="font-size:12px">Your explanation will be visible to everyone in the room.</p><label>Reason</label><textarea id="reasonInput" maxlength="500" placeholder="Tell your group why you couldn't finish this target..."></textarea>`, "Submit",()=>{
+   const reason=$("reasonInput").value.trim();if(!reason){$("reasonInput").focus();return}
+   t.status="unfinished";t.reason=reason;t.updatedAt=stamp();log(me+" couldn't complete "+t.topic);save();closeModal();render();
+  });return;
+ }
+ t.status=status;t.updatedAt=stamp();t.reason="";
+ log(me+(status==="completed"?" completed ":" carried over ")+t.topic);save();render();
+}
+$("createRoomBtn").onclick=()=>{const name=$("displayName").value.trim();const typedCode=$("roomCodeInput").value.trim();const code=typedCode?typedCode.toUpperCase().replace(/\\s+/g,""):("DIVE"+Math.random().toString(36).slice(2,6).toUpperCase());enter(code,name,true,$("newRoomName").value)};
+$("joinRoomBtn").onclick=()=>{const code=$("roomCodeInput").value.trim();if(!code){$("joinError").textContent="Enter a room code.";$("joinError").classList.remove("hidden");return}enter(code,$("displayName").value,false)};
+$("addTargetBtn").onclick=()=>addTarget();
+$("changeNameBtn").onclick=()=>{modal("Change your name",`<label>New display name</label><input id="newName" maxlength="30" value="${esc(me)}">`,"Save name",()=>{const n=$("newName").value.trim();if(!n)return;if(room.members.includes(n)&&n!==me){alert("That name is already being used in this room.");return}room.members=room.members.map(x=>x===me?n:x);room.targets.forEach(t=>{if(t.owner===me)t.owner=n});me=n;log("A member changed their display name");save();localStorage.setItem("deepdive_demo_last",JSON.stringify({code:roomCode,name:me}));closeModal();render()})};
+$("inviteBtn").onclick=async()=>{const url=location.origin+location.pathname+"?room="+encodeURIComponent(roomCode);try{await navigator.clipboard.writeText(url);alert("Invite link copied!\\n\\n"+url+"\\n\\nPreview note: your friend will need the live database version to see shared data across devices.")}catch{prompt("Copy this invitation link:",url)}};
+$("settingsBtn").onclick=()=>{const menu=$("settingsMenu");menu.classList.toggle("hidden");$("settingsBtn").setAttribute("aria-expanded",String(!menu.classList.contains("hidden")))};
+document.addEventListener("click",e=>{if(!$("settingsMenu").contains(e.target)&&e.target!==$("settingsBtn")){$("settingsMenu").classList.add("hidden");$("settingsBtn").setAttribute("aria-expanded","false")}});
+$("leaveRoomBtn").onclick=()=>{
+ if(!confirm("Leave this room on this browser? Your targets, activity and 7-day history will remain saved. You can rejoin later with an invite link."))return;
+ room.members=room.members.filter(n=>n!==me);
+ log(me+" left the room");
+ save();
+ localStorage.removeItem("deepdive_demo_last");
+ roomCode=null;room=null;me=null;historyFilter="all";
+ $("settingsMenu").classList.add("hidden");
+ $("displayName").value="";$("roomCodeInput").value="";
+ $("joinError").classList.add("hidden");
+ showJoin();
+};
+$("targets").addEventListener("click",e=>{const b=e.target.closest("button[data-action]");if(!b)return;const t=room.targets.find(x=>x.id===b.dataset.id);if(!t)return;switch(b.dataset.action){case"edit":if(t.owner===me)addTarget(t);break;case"delete":if(t.owner===me&&confirm("Delete this target?")){room.targets=room.targets.filter(x=>x.id!==t.id);log(me+" deleted a target");save();render()}break;case"complete":updateStatus(t.id,"completed");break;case"unfinished":updateStatus(t.id,"unfinished");break;case"carry":updateStatus(t.id,"carried");break;}});
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{historyFilter=b.dataset.filter;document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x===b));render()});
+const params=new URLSearchParams(location.search);const invited=params.get("room");
+if(invited){$("roomCodeInput").value=invited.toUpperCase();}
+const last=JSON.parse(localStorage.getItem("deepdive_demo_last")||"null");
+if(last&&load(last.code)&&!invited){roomCode=last.code;room=load(last.code);me=last.name;if(!room.members.includes(me))room.members.push(me);showApp();}
+else showJoin();
+})();
+</script>
+</body>
+</html>

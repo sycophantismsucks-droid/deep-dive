@@ -43,6 +43,7 @@ label{display:block;color:#b5bbc5;font-size:11px;font-weight:700;letter-spacing:
 .tabs{display:flex;gap:7px;flex-wrap:wrap}.tab{padding:8px 11px;border:1px solid var(--line);border-radius:9px;background:transparent;color:var(--muted);font-size:12px}.tab.active{background:#e9edf2;color:#101216;border-color:#e9edf2}
 @media(max-width:760px){.grid{grid-template-columns:1fr}.wrap{padding-top:22px}.formgrid{grid-template-columns:1fr}.card{padding:16px}header{margin-bottom:23px}.stat strong{font-size:21px}}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div id="joinScreen" class="wrap joinbox hidden">
@@ -51,6 +52,10 @@ label{display:block;color:#b5bbc5;font-size:11px;font-weight:700;letter-spacing:
     <div class="eyebrow">YOUR SHARED STUDY SPACE</div>
     <h2 style="margin-top:8px">Create or join a room.</h2>
     <p class="sub" style="font-size:13px">Start a room for your group, or enter a room code you've been given.</p>
+    <label for="emailInput">Email</label><input id="emailInput" type="email" autocomplete="email" placeholder="you@example.com">
+    <label for="passwordInput">Password</label><input id="passwordInput" type="password" autocomplete="current-password" placeholder="At least 6 characters">
+    <div class="row" style="margin-top:10px"><button class="btn" id="signUpBtn">Create account</button><button class="btn" id="signInBtn">Sign in</button></div>
+    <p class="note" id="authMessage" style="margin-top:8px">Sign in or create an account to use shared rooms.</p>
     <label for="displayName">Your name</label><input id="displayName" maxlength="30" placeholder="What should your friends call you?">
     <div class="formgrid" style="margin-top:6px">
       <div><label for="newRoomName">Room name (optional)</label><input id="newRoomName" maxlength="30" placeholder="Our study room"></div>
@@ -60,7 +65,7 @@ label{display:block;color:#b5bbc5;font-size:11px;font-weight:700;letter-spacing:
       <button class="btn primary" id="createRoomBtn">Create a room</button>
       <button class="btn" id="joinRoomBtn">Join with code</button>
     </div>
-    <p class="note" style="margin-top:16px">This first preview saves data in this browser only. Room links and live sharing between different devices will work after the database is connected.</p>
+    <p class="note" style="margin-top:16px">Your account and room data are stored in Supabase. Sign in on another device to access the same room.</p>
     <div id="joinError" class="notice hidden"></div>
   </section>
 </div>
@@ -110,115 +115,155 @@ label{display:block;color:#b5bbc5;font-size:11px;font-weight:700;letter-spacing:
 <div id="modalRoot"></div>
 <script>
 (() => {
+const SUPABASE_URL = "https://fzophnfknjwqlpdsnvvm.supabase.co";
+const SUPABASE_KEY = "sb_publishable_kGw7vccnT5tzS8WUd3Y-kQ_Ec8N-xKC";
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const SUBJECTS=["Physics 1st Paper","Physics 2nd Paper","Chemistry 1st Paper","Chemistry 2nd Paper","Math 1st Paper","Math 2nd Paper","Biology 1st Paper","Biology 2nd Paper","ICT","Bangla 1st Paper","Bangla 2nd Paper","English 1st Paper","English 2nd Paper"];
-const $=id=>document.getElementById(id);
-const today=()=>new Date().toISOString().slice(0,10);
-const stamp=()=>new Date().toISOString();
+const $=id=>document.getElementById(id), today=()=>new Date().toISOString().slice(0,10), stamp=()=>new Date().toISOString();
 const fmtDate=s=>new Date(s+"T00:00:00").toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short"});
 const fmtTime=s=>new Date(s).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let roomCode=null,me=null,room=null,historyFilter="all";
-const storageKey=code=>"deepdive_demo_room_"+code;
-function save(){if(roomCode&&room)localStorage.setItem(storageKey(roomCode),JSON.stringify(room));}
-function load(code){try{return JSON.parse(localStorage.getItem(storageKey(code))||"null")}catch{return null}}
-function log(message){room.activity.unshift({id:crypto.randomUUID(),message,at:stamp()});room.activity=room.activity.slice(0,80);save();}
-function showJoin(){ $("joinScreen").classList.remove("hidden");$("app").classList.add("hidden");}
-function showApp(){ $("joinScreen").classList.add("hidden");$("app").classList.remove("hidden");render();}
-function enter(code,name,create=false,roomName=""){
- roomCode=code.toUpperCase();me=name.trim();
- if(!me){$("joinError").textContent="Please enter your name first.";$("joinError").classList.remove("hidden");return}
- room=load(roomCode);
- if(create){if(room){$("joinError").textContent="That room code already exists in this browser. Try creating again.";$("joinError").classList.remove("hidden");return}room={name:roomName.trim()||"Our study room",members:[],targets:[],activity:[]};}
- if(!room){$("joinError").textContent="That room isn't saved in this browser yet. For this preview, create it here first.";$("joinError").classList.remove("hidden");return}
- if(!room.members.includes(me)){if(room.members.length>=7){$("joinError").textContent="This room has reached its 7-member limit.";$("joinError").classList.remove("hidden");return}room.members.push(me);log(me+" joined the room");}
- else log(me+" opened Deep Dive");
- save();localStorage.setItem("deepdive_demo_last",JSON.stringify({code:roomCode,name:me}));showApp();
+let user=null, roomCode=null, me=null, room=null, memberId=null, historyFilter="all", busy=false, channel=null;
+const say=(id,msg)=>{$(id).textContent=msg;$(id).classList.remove("hidden")};
+function showJoin(){$("joinScreen").classList.remove("hidden");$("app").classList.add("hidden")}
+function showApp(){$("joinScreen").classList.add("hidden");$("app").classList.remove("hidden");render()}
+function setBusy(v){busy=v;["createRoomBtn","joinRoomBtn","signUpBtn","signInBtn"].forEach(id=>$(id).disabled=v)}
+function errorMessage(e){return e?.message||"Something went wrong. Please try again."}
+async function authAction(mode){
+ const email=$("emailInput").value.trim(), password=$("passwordInput").value;
+ if(!email||!password){say("authMessage","Enter your email and password.");return}
+ setBusy(true);
+ try{
+  const result=mode==="signup"?await db.auth.signUp({email,password}):await db.auth.signInWithPassword({email,password});
+  if(result.error)throw result.error;
+  if(mode==="signup"&&!result.data.session)say("authMessage","Account created. Check your email to confirm it, then sign in.");
+  else {$("authMessage").textContent="Signed in.";user=result.data.user||result.data.session?.user;await afterAuth();}
+ }catch(e){say("authMessage",errorMessage(e))}finally{setBusy(false)}
+}
+async function afterAuth(){
+ const {data:{user:u}}=await db.auth.getUser();user=u;
+ if(!user){showJoin();return}
+ const params=new URLSearchParams(location.search), invited=params.get("room");
+ if(invited){$("roomCodeInput").value=invited.toUpperCase();showJoin();return}
+ showJoin();
+}
+async function rpc(name,args){const {data,error}=await db.rpc(name,args);if(error)throw error;return data}
+async function loadRoom(code){
+ const {data:r,error:re}=await db.from("rooms").select("id,invite_code,owner_id,created_at,name").eq("invite_code",code).maybeSingle();
+ if(re)throw re;if(!r)throw new Error("Room not found. Check the invitation code.");
+ const {data:ms,error:meErr}=await db.from("members").select("id,room_id,user_id,display_name,joined_at,left_at").eq("room_id",r.id).is("left_at",null).order("joined_at");
+ if(meErr)throw meErr;
+ const mine=ms.find(m=>m.user_id===user.id);if(!mine)throw new Error("You are not an active member of this room.");
+ const [{data:ts,error:te},{data:acts,error:ae},{data:notes,error:ne}]=await Promise.all([
+  db.from("targets").select("id,room_id,member_id,subject,topic,status,reason,created_at,updated_at,creator_name,target_date").eq("room_id",r.id).order("created_at",{ascending:false}),
+  db.from("activity").select("id,room_id,member_id,target_id,action,details,member_name,created_at").eq("room_id",r.id).order("created_at",{ascending:false}).limit(80),
+  db.from("private_notes").select("target_id,member_id,note").eq("member_id",mine.id)
+ ]);
+ if(te)throw te;if(ae)throw ae;if(ne)throw ne;
+ room={id:r.id,name:r.name||"Our study room",members:ms,targets:ts||[],activity:(acts||[]).map(a=>({id:a.id,message:a.details||a.action,at:a.created_at}))};
+ memberId=mine.id;me=mine.display_name;roomCode=r.invite_code;
+ (notes||[]).forEach(n=>{const t=room.targets.find(x=>x.id===n.target_id);if(t)t.note=n.note});
+ if(channel)await db.removeChannel(channel);
+ channel=db.channel("room-"+room.id).on("postgres_changes",{event:"*",schema:"public",table:"targets",filter:"room_id=eq."+room.id},()=>refreshRoom())
+ .on("postgres_changes",{event:"*",schema:"public",table:"activity",filter:"room_id=eq."+room.id},()=>refreshRoom())
+ .on("postgres_changes",{event:"*",schema:"public",table:"members",filter:"room_id=eq."+room.id},()=>refreshRoom()).subscribe();
+ showApp();
+}
+let refreshTimer=null;
+async function refreshRoom(){if(refreshTimer)return;refreshTimer=setTimeout(async()=>{refreshTimer=null;if(roomCode&&user){try{await loadRoom(roomCode)}catch(e){console.error(e)}}},350)}
+async function enter(create){
+ if(!user){say("joinError","Sign in first.");return}
+ const name=$("displayName").value.trim();if(!name){say("joinError","Enter your display name.");return}
+ setBusy(true);
+ try{
+  let result, code;
+  if(create){
+   code="DIVE"+Array.from(crypto.getRandomValues(new Uint8Array(4)),b=>"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[b%32]).join("");
+   result=await rpc("create_room",{p_name:$("newRoomName").value.trim()||"Our study room",p_invite_code:code,p_display_name:name});
+  }else{
+   code=$("roomCodeInput").value.trim().toUpperCase().replace(/\s+/g,"");if(!code)throw new Error("Enter a room code.");
+   result=await rpc("join_room",{p_invite_code:code,p_display_name:name});
+  }
+  roomCode=result.invite_code||code;
+  await loadRoom(roomCode);
+  history.replaceState({}, "", location.pathname+"?room="+encodeURIComponent(roomCode));
+ }catch(e){say("joinError",errorMessage(e))}finally{setBusy(false)}
 }
 function statusText(s){return ({studying:"Studying",completed:"Completed",unfinished:"Not completed",carried:"Carried over"})[s]||s}
-function statusClass(s){return s}
-function canSeeNote(t){return t.owner===me}
 function render(){
  if(!room)return;
  $("roomPill").textContent="ROOM · "+roomCode;$("roomCodeDisplay").textContent=roomCode;
  $("todayLabel").textContent=new Date().toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long"}).toUpperCase();
- $("greeting").textContent=room.name||"Today's study space.";
- $("memberLabel").textContent="Signed in as "+me+" · "+room.members.length+" of 7 members";
+ $("greeting").textContent=room.name;$("memberLabel").textContent="Signed in as "+me+" · "+room.members.length+" of 7 members";
  $("memberCount").textContent=room.members.length+" member"+(room.members.length===1?"":"s");
- $("members").innerHTML=room.members.map(n=>`<div style="padding:6px 0;border-bottom:1px solid #252a33">◦ ${esc(n)} ${n===me?'<span style="color:#9299a5">(you)</span>':""}</div>`).join("");
- const todays=room.targets.filter(t=>t.date===today());
- const done=todays.filter(t=>t.status==="completed").length;
+ $("members").innerHTML=room.members.map(n=>'<div style="padding:6px 0;border-bottom:1px solid #252a33">◦ '+esc(n.display_name)+(n.id===memberId?' <span style="color:#9299a5">(you)</span>':"")+"</div>").join("");
+ const todays=room.targets.filter(t=>t.target_date===today()),done=todays.filter(t=>t.status==="completed").length;
  $("totalStat").textContent=todays.length;$("doneStat").textContent=done;$("leftStat").textContent=todays.length-done;
  $("progressBar").style.width=(todays.length?done/todays.length*100:0)+"%";
- $("progressText").textContent=todays.length?`${done} of ${todays.length} targets completed (${Math.round(done/todays.length*100)}%).`:"No targets yet. Set the first one.";
- $("targets").innerHTML=todays.length? [...todays].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).map(t=>`
- <article class="target"><div class="targettop"><div><div class="subject">${esc(t.subject)} · ${esc(t.owner)}</div><div class="topic">${esc(t.topic)}</div><div class="meta">Added ${fmtTime(t.createdAt)}</div></div><span class="status ${statusClass(t.status)}">${statusText(t.status)}</span></div>
- ${t.note&&canSeeNote(t)?`<div class="meta" style="margin-top:10px;color:#c0c6d0">Private note: ${esc(t.note)}</div>`:""}
- ${t.reason?`<div class="meta" style="margin-top:8px;color:#e0aaaa">Reason: ${esc(t.reason)}</div>`:""}
- <div class="row" style="margin-top:12px">${t.owner===me?`<button class="btn small" data-action="edit" data-id="${t.id}">Edit</button><button class="btn small ghost" data-action="delete" data-id="${t.id}">Delete</button>`:""}
- ${t.status==="studying"?`<button class="btn small success" data-action="complete" data-id="${t.id}">✓ Completed</button><button class="btn small danger" data-action="unfinished" data-id="${t.id}">Not completed</button><button class="btn small amber" data-action="carry" data-id="${t.id}">Carry over</button>`:""}
- </div></article>`).join(""):'<div class="empty">No targets submitted today.<br>Start by adding what you plan to study.</div>';
- const sevenAgo=new Date();sevenAgo.setDate(sevenAgo.getDate()-6);const minDate=sevenAgo.toISOString().slice(0,10);
- const hist=room.targets.filter(t=>t.date>=minDate).filter(t=>historyFilter==="all"||t.owner===me).sort((a,b)=>(b.updatedAt||b.createdAt).localeCompare(a.updatedAt||a.createdAt));
+ $("progressText").textContent=todays.length?done+" of "+todays.length+" targets completed ("+Math.round(done/todays.length*100)+"%).":"No targets yet. Set the first one.";
+ $("targets").innerHTML=todays.length?[...todays].sort((a,b)=>b.created_at.localeCompare(a.created_at)).map(t=>{
+  const own=t.member_id===memberId;
+  return '<article class="target"><div class="targettop"><div><div class="subject">'+esc(t.subject)+' · '+esc(t.creator_name||"Member")+'</div><div class="topic">'+esc(t.topic)+'</div><div class="meta">Added '+fmtTime(t.created_at)+'</div></div><span class="status '+esc(t.status)+'">'+statusText(t.status)+'</span></div>'+
+  (t.note&&own?'<div class="meta" style="margin-top:10px;color:#c0c6d0">Private note: '+esc(t.note)+'</div>':"")+
+  (t.reason?'<div class="meta" style="margin-top:8px;color:#e0aaaa">Reason: '+esc(t.reason)+'</div>':"")+
+  '<div class="row" style="margin-top:12px">'+(own?'<button class="btn small" data-action="edit" data-id="'+t.id+'">Edit</button><button class="btn small ghost" data-action="delete" data-id="'+t.id+'">Delete</button>':"")+
+  (t.status==="studying"?'<button class="btn small success" data-action="complete" data-id="'+t.id+'">✓ Completed</button><button class="btn small danger" data-action="unfinished" data-id="'+t.id+'">Not completed</button><button class="btn small amber" data-action="carry" data-id="'+t.id+'">Carry over</button>':"")+'</div></article>'
+ }).join(""):'<div class="empty">No targets submitted today.<br>Start by adding what you plan to study.</div>';
+ const minDate=new Date(Date.now()-6*86400000).toISOString().slice(0,10);
+ const hist=room.targets.filter(t=>t.target_date>=minDate).filter(t=>historyFilter==="all"||t.member_id===memberId).sort((a,b)=>(b.updated_at||b.created_at).localeCompare(a.updated_at||a.created_at));
  $("historyCount").textContent=hist.length+" records";
- $("history").innerHTML=hist.length?hist.map(t=>`<div class="historyrow"><div><div class="historytitle">${esc(t.subject)} · ${esc(t.topic)}</div><div class="historymeta">${esc(t.owner)} · ${fmtDate(t.date)}${t.reason?" · "+esc(t.reason):""}</div></div><span class="status ${statusClass(t.status)}">${statusText(t.status)}</span></div>`).join(""):'<div class="empty">Nothing in the last seven days yet.</div>';
- $("feed").innerHTML=room.activity.length?room.activity.slice(0,12).map(a=>`<div class="feeditem">${esc(a.message)}<div class="feedtime">${fmtTime(a.at)}</div></div>`).join(""):'<div class="note">Activity will appear here as your group updates targets.</div>';
+ $("history").innerHTML=hist.length?hist.map(t=>'<div class="historyrow"><div><div class="historytitle">'+esc(t.subject)+' · '+esc(t.topic)+'</div><div class="historymeta">'+esc(t.creator_name||"Member")+' · '+fmtDate(t.target_date)+(t.reason?" · "+esc(t.reason):"")+'</div></div><span class="status '+esc(t.status)+'">'+statusText(t.status)+'</span></div>').join(""):'<div class="empty">Nothing in the last seven days yet.</div>';
+ $("feed").innerHTML=room.activity.length?room.activity.slice(0,12).map(a=>'<div class="feeditem">'+esc(a.message)+'<div class="feedtime">'+fmtTime(a.at)+'</div></div>').join(""):'<div class="note">Activity will appear here as your group updates targets.</div>';
+}
+async function log(action,details,targetId=null){
+ const {error}=await db.from("activity").insert({room_id:room.id,member_id:memberId,target_id:targetId,action,details,member_name:me});
+ if(error)console.error("Activity log:",error.message);
 }
 function modal(title,body,submitLabel,handler){
- $("modalRoot").innerHTML=`<div class="modalback" id="modalBack"><div class="modal"><div class="between"><h2>${title}</h2><button class="btn small ghost" id="closeModal">✕</button></div>${body}<div class="modalfoot"><button class="btn" id="cancelModal">Cancel</button><button class="btn primary" id="submitModal">${submitLabel}</button></div></div></div>`;
- $("closeModal").onclick=$("cancelModal").onclick=closeModal;
- $("modalBack").addEventListener("click",e=>{if(e.target.id==="modalBack")closeModal()});
- $("submitModal").onclick=handler;
+ $("modalRoot").innerHTML='<div class="modalback" id="modalBack"><div class="modal"><div class="between"><h2>'+title+'</h2><button class="btn small ghost" id="closeModal">✕</button></div>'+body+'<div class="modalfoot"><button class="btn" id="cancelModal">Cancel</button><button class="btn primary" id="submitModal">'+submitLabel+'</button></div></div></div>';
+ $("closeModal").onclick=$("cancelModal").onclick=closeModal;$("modalBack").addEventListener("click",e=>{if(e.target.id==="modalBack")closeModal()});$("submitModal").onclick=handler;
 }
 function closeModal(){$("modalRoot").innerHTML=""}
 function addTarget(existing=null){
- const edit=!!existing;
- const body=`<label>Subject</label><select id="fSubject">${SUBJECTS.map(s=>`<option ${existing?.subject===s?"selected":""}>${s}</option>`).join("")}</select>
- <label>Topic</label><input id="fTopic" maxlength="120" placeholder="What are you going to study?" value="${esc(existing?.topic||"")}">
- <label>Private note <span style="color:#858d99;text-transform:none;letter-spacing:0">(only you can see this)</span></label><textarea id="fNote" maxlength="500" placeholder="Optional reminder or personal note...">${esc(existing?.note||"")}</textarea>`;
- modal(edit?"Edit target":"Set a new target",body,edit?"Save changes":"Submit target",()=>{
+ const edit=!!existing,body='<label>Subject</label><select id="fSubject">'+SUBJECTS.map(s=>'<option '+(existing?.subject===s?"selected":"")+'>'+s+'</option>').join("")+'</select><label>Topic</label><input id="fTopic" maxlength="120" placeholder="What are you going to study?" value="'+esc(existing?.topic||"")+'"><label>Private note <span style="color:#858d99;text-transform:none;letter-spacing:0">(only you can see this)</span></label><textarea id="fNote" maxlength="500" placeholder="Optional reminder or personal note...">'+esc(existing?.note||"")+'</textarea>';
+ modal(edit?"Edit target":"Set a new target",body,edit?"Save changes":"Submit target",async()=>{
   const topic=$("fTopic").value.trim();if(!topic){$("fTopic").focus();return}
-  if(edit){existing.subject=$("fSubject").value;existing.topic=topic;existing.note=$("fNote").value.trim();existing.updatedAt=stamp();log(me+" edited a target");}
-  else{const t={id:crypto.randomUUID(),owner:me,subject:$("fSubject").value,topic,note:$("fNote").value.trim(),status:"studying",date:today(),createdAt:stamp(),updatedAt:stamp(),reason:""};room.targets.push(t);log(me+" started "+t.subject+": "+t.topic);}
-  save();closeModal();render();
+  const subject=$("fSubject").value,note=$("fNote").value.trim();
+  try{
+   if(edit){
+    const {error}=await db.from("targets").update({subject,topic,updated_at:stamp()}).eq("id",existing.id);if(error)throw error;
+    const {error:ne}=await db.from("private_notes").upsert({target_id:existing.id,member_id:memberId,note},{onConflict:"target_id,member_id"});if(ne)throw ne;
+    await log("target_edited","Edited "+topic,existing.id);
+   }else{
+    const {data:t,error}=await db.from("targets").insert({room_id:room.id,member_id:memberId,subject,topic,status:"studying",reason:"",creator_name:me,target_date:today()}).select().single();if(error)throw error;
+    if(note){const {error:ne}=await db.from("private_notes").insert({target_id:t.id,member_id:memberId,note});if(ne)throw ne}
+    await log("target_created","Started "+subject+": "+topic,t.id);
+   }
+   closeModal();await loadRoom(roomCode);
+  }catch(e){alert(errorMessage(e))}
  });
 }
-function updateStatus(id,status){
+async function updateStatus(id,status){
  const t=room.targets.find(x=>x.id===id);if(!t)return;
- if(status==="unfinished"){
-  modal("What got in the way? ",`<p class="sub" style="font-size:12px">Your explanation will be visible to everyone in the room.</p><label>Reason</label><textarea id="reasonInput" maxlength="500" placeholder="Tell your group why you couldn't finish this target..."></textarea>`, "Submit",()=>{
-   const reason=$("reasonInput").value.trim();if(!reason){$("reasonInput").focus();return}
-   t.status="unfinished";t.reason=reason;t.updatedAt=stamp();log(me+" couldn't complete "+t.topic);save();closeModal();render();
-  });return;
- }
- t.status=status;t.updatedAt=stamp();t.reason="";
- log(me+(status==="completed"?" completed ":" carried over ")+t.topic);save();render();
+ const saveStatus=async(reason="")=>{try{const {error}=await db.from("targets").update({status,reason,updated_at:stamp()}).eq("id",id);if(error)throw error;await log(status,"Updated "+t.topic,id);closeModal();await loadRoom(roomCode)}catch(e){alert(errorMessage(e))}};
+ if(status==="unfinished"){modal("What got in the way?",'<p class="sub" style="font-size:12px">Your explanation will be visible to everyone in the room.</p><label>Reason</label><textarea id="reasonInput" maxlength="500" placeholder="Tell your group why you couldn\'t finish this target..."></textarea>',"Submit",()=>{const r=$("reasonInput").value.trim();if(!r){$("reasonInput").focus();return}saveStatus(r)});return}
+ await saveStatus("");
 }
-$("createRoomBtn").onclick=()=>{const name=$("displayName").value.trim();const typedCode=$("roomCodeInput").value.trim();const code=typedCode?typedCode.toUpperCase().replace(/\\s+/g,""):("DIVE"+Math.random().toString(36).slice(2,6).toUpperCase());enter(code,name,true,$("newRoomName").value)};
-$("joinRoomBtn").onclick=()=>{const code=$("roomCodeInput").value.trim();if(!code){$("joinError").textContent="Enter a room code.";$("joinError").classList.remove("hidden");return}enter(code,$("displayName").value,false)};
+$("signUpBtn").onclick=()=>authAction("signup");$("signInBtn").onclick=()=>authAction("signin");
+$("createRoomBtn").onclick=()=>enter(true);$("joinRoomBtn").onclick=()=>enter(false);
 $("addTargetBtn").onclick=()=>addTarget();
-$("changeNameBtn").onclick=()=>{modal("Change your name",`<label>New display name</label><input id="newName" maxlength="30" value="${esc(me)}">`,"Save name",()=>{const n=$("newName").value.trim();if(!n)return;if(room.members.includes(n)&&n!==me){alert("That name is already being used in this room.");return}room.members=room.members.map(x=>x===me?n:x);room.targets.forEach(t=>{if(t.owner===me)t.owner=n});me=n;log("A member changed their display name");save();localStorage.setItem("deepdive_demo_last",JSON.stringify({code:roomCode,name:me}));closeModal();render()})};
-$("inviteBtn").onclick=async()=>{const url=location.origin+location.pathname+"?room="+encodeURIComponent(roomCode);try{await navigator.clipboard.writeText(url);alert("Invite link copied!\\n\\n"+url+"\\n\\nPreview note: your friend will need the live database version to see shared data across devices.")}catch{prompt("Copy this invitation link:",url)}};
+$("changeNameBtn").onclick=()=>modal("Change your name",'<label>New display name</label><input id="newName" maxlength="30" value="'+esc(me)+'">',"Save name",async()=>{
+ const n=$("newName").value.trim();if(!n)return;
+ try{const {error}=await db.from("members").update({display_name:n}).eq("id",memberId);if(error)throw error;me=n;await log("name_changed","A member changed their display name");await loadRoom(roomCode)}catch(e){alert(errorMessage(e))}closeModal()
+});
+$("inviteBtn").onclick=async()=>{const url=location.origin+location.pathname+"?room="+encodeURIComponent(roomCode);try{await navigator.clipboard.writeText(url);alert("Invite link copied! Share it with your group.")}catch{prompt("Copy this invitation link:",url)}};
 $("settingsBtn").onclick=()=>{const menu=$("settingsMenu");menu.classList.toggle("hidden");$("settingsBtn").setAttribute("aria-expanded",String(!menu.classList.contains("hidden")))};
 document.addEventListener("click",e=>{if(!$("settingsMenu").contains(e.target)&&e.target!==$("settingsBtn")){$("settingsMenu").classList.add("hidden");$("settingsBtn").setAttribute("aria-expanded","false")}});
-$("leaveRoomBtn").onclick=()=>{
- if(!confirm("Leave this room on this browser? Your targets, activity and 7-day history will remain saved. You can rejoin later with an invite link."))return;
- room.members=room.members.filter(n=>n!==me);
- log(me+" left the room");
- save();
- localStorage.removeItem("deepdive_demo_last");
- roomCode=null;room=null;me=null;historyFilter="all";
- $("settingsMenu").classList.add("hidden");
- $("displayName").value="";$("roomCodeInput").value="";
- $("joinError").classList.add("hidden");
- showJoin();
-};
-$("targets").addEventListener("click",e=>{const b=e.target.closest("button[data-action]");if(!b)return;const t=room.targets.find(x=>x.id===b.dataset.id);if(!t)return;switch(b.dataset.action){case"edit":if(t.owner===me)addTarget(t);break;case"delete":if(t.owner===me&&confirm("Delete this target?")){room.targets=room.targets.filter(x=>x.id!==t.id);log(me+" deleted a target");save();render()}break;case"complete":updateStatus(t.id,"completed");break;case"unfinished":updateStatus(t.id,"unfinished");break;case"carry":updateStatus(t.id,"carried");break;}});
+$("leaveRoomBtn").onclick=async()=>{if(!confirm("Leave this room? You can rejoin later with its invite link."))return;try{await rpc("leave_room",{p_room_id:room.id});if(channel)await db.removeChannel(channel);room=null;roomCode=null;memberId=null;me=null;history.replaceState({},"",location.pathname);$("settingsMenu").classList.add("hidden");showJoin()}catch(e){alert(errorMessage(e))}};
+$("targets").addEventListener("click",async e=>{const b=e.target.closest("button[data-action]");if(!b)return;const t=room.targets.find(x=>x.id===b.dataset.id);if(!t)return;switch(b.dataset.action){case"edit":if(t.member_id===memberId)addTarget(t);break;case"delete":if(t.member_id===memberId&&confirm("Delete this target?")){try{const {error}=await db.from("targets").delete().eq("id",t.id);if(error)throw error;await log("target_deleted","Deleted "+t.topic,t.id);await loadRoom(roomCode)}catch(e){alert(errorMessage(e))}}break;case"complete":updateStatus(t.id,"completed");break;case"unfinished":updateStatus(t.id,"unfinished");break;case"carry":updateStatus(t.id,"carried");break}});
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{historyFilter=b.dataset.filter;document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x===b));render()});
-const params=new URLSearchParams(location.search);const invited=params.get("room");
-if(invited){$("roomCodeInput").value=invited.toUpperCase();}
-const last=JSON.parse(localStorage.getItem("deepdive_demo_last")||"null");
-if(last&&load(last.code)&&!invited){roomCode=last.code;room=load(last.code);me=last.name;if(!room.members.includes(me))room.members.push(me);showApp();}
-else showJoin();
+db.auth.onAuthStateChange((event,session)=>{user=session?.user||null;if(!user){room=null;roomCode=null;memberId=null;me=null;showJoin()}});
+(async()=>{const {data:{session}}=await db.auth.getSession();user=session?.user||null;const invited=new URLSearchParams(location.search).get("room");if(invited)$("roomCodeInput").value=invited.toUpperCase();if(user&&invited){$("authMessage").textContent="Signed in. Enter your name, then join the room."}else if(user){$("authMessage").textContent="Signed in. Create a room or enter an invite code."}else $("authMessage").textContent="Sign in or create an account to use shared rooms.";showJoin()})();
 })();
 </script>
 </body>
